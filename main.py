@@ -40,31 +40,40 @@ async def slack_events(request: Request):
 
     if 'challenge' in slack_event:
         return {"challenge": slack_event['challenge']}
-    
-    if 'event' in slack_event:
-        event = slack_event['event']
-        event_id = slack_event.get('event_id', '')
 
-        if event_id in processed_events:
-            logging.info(f'Duplicate event received: {event_id}')
-            return {"status": "ok"}
-        
-        processed_events.add(event_id)
-        logging.info(f'Processing event: {event_id}')
+    # Verify that the post request is only coming from Slack. This does not verify the specfic token so this block can be upgraded for security.
+    if slack_event.get('token'):
+        slack_verification_token = slack_event.get('token')
+        print(f'Slack event token: {slack_verification_token}')
 
-        if event.get('type') != 'message' or event.get('subtype') in ['bot_message', 'message_deleted', 'message_changed'] or event.get('user') == BOT_USER_ID:
-            logging.info(f"Ignoring event: {event}")
-            return {"status": "ok"}
-        
-        user_input = event.get('text', '')
-        channel_id = event.get('channel', '')
-        ts = event.get('ts', '')
-        
-        if user_input:
-            logging.info(f"Processing event: user_input={user_input}, channel_id={channel_id}")
-            await process_event(user_input, channel_id, ts)
+        if 'event' in slack_event:
+            event = slack_event['event']
+            event_id = slack_event.get('event_id', '')  # Accessing event_id directly from slack_event
 
-    return {"status": "ok"}
+            if event_id in processed_events:
+                logging.info(f'Duplicate event received: {event_id}')
+                return {"status": "ok"}
+
+            processed_events.add(event_id)
+            logging.info(f'Processing event: {event_id}')
+
+            if event.get('type') != 'message' or event.get('subtype') in ['bot_message', 'message_deleted', 'message_changed'] or event.get('user') == BOT_USER_ID:
+                logging.info(f"Ignoring event: {event}")
+                return {"status": "ok"}
+
+            user_input = event.get('text', '')
+            channel_id = event.get('channel', '')
+            ts = event.get('ts', '')
+
+            if user_input:
+                logging.info(f"Processing event: user_input={user_input}, channel_id={channel_id}")
+                await process_event(user_input, channel_id, ts)
+                
+        return {"status": "ok"}
+        
+    else:
+        return {"error": "Invalid token"}
+
 
 async def process_event(user_input: str, channel_id: str, ts: str):
     logging.info(f"Triggered process_event: user_input={user_input}, channel_id={channel_id}, ts={ts}")
